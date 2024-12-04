@@ -126,7 +126,7 @@
         }
       })
 
-      console.log(results)
+      // console.log(results)
       if (page === 1) {
         postsRef.value = results
       } else {

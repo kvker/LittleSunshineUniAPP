@@ -124,13 +124,45 @@
       <view
         class="card"
         v-if="!userInfoRef.isVip">
-        <view class="vip-header">
-          <view class="vip-title">开通会员</view>
-          <view class="vip-price">
-            <text class="price-number">6</text>
-            <text class="price-unit">元/月</text>
+        <view class="card-title">开通会员</view>
+        <view class="vip-options">
+          <!-- 月度会员 -->
+          <view
+            class="vip-option"
+            @click="onSelectVip('month')">
+            <view class="option-header">
+              <text class="option-title">月度会员</text>
+              <view class="option-price">
+                <text class="price-number">6</text>
+                <text class="price-unit">元/月</text>
+              </view>
+            </view>
+            <view
+              class="option-selected"
+              v-if="selectedVipType === 'month'">
+              <text class="selected-icon">✓</text>
+            </view>
+          </view>
+
+          <!-- 永久会员 -->
+          <view
+            class="vip-option"
+            @click="onSelectVip('forever')">
+            <view class="option-header">
+              <text class="option-title">永久会员</text>
+              <view class="option-price">
+                <text class="price-number">98</text>
+                <text class="price-unit">元</text>
+              </view>
+            </view>
+            <view
+              class="option-selected"
+              v-if="selectedVipType === 'forever'">
+              <text class="selected-icon">✓</text>
+            </view>
           </view>
         </view>
+
         <view class="vip-benefits">
           <text class="benefit-item">• 发帖无限制</text>
           <text class="benefit-item">• 评论无限制</text>
@@ -139,15 +171,23 @@
         <button
           class="vip-button"
           @click="onBuyVip">
-          立即开通
+          立即开通{{ selectedVipType === 'forever' ? '永久会员' : '月度会员' }}
         </button>
       </view>
 
       <!-- 修改密码按钮 -->
-      <button class="change-password-btn" @click="onChangePassword">修改密码</button>
+      <button
+        class="change-password-btn"
+        @click="onChangePassword">
+        修改密码
+      </button>
 
       <!-- 退出登录按钮 -->
-      <button class="logout-btn" @click="onLogout">退出登录</button>
+      <button
+        class="logout-btn"
+        @click="onLogout">
+        退出登录
+      </button>
     </template>
   </view>
 </template>
@@ -162,6 +202,7 @@ const currentViewRef = ref('login') // login, register, resetPassword
 const emailRef = ref('')
 const passwordRef = ref('')
 const confirmPasswordRef = ref('')
+const selectedVipType = ref('month') // 'month' 或 'forever'
 
 // 检查登录状态
 async function onCheckLoginStatus() {
@@ -332,20 +373,141 @@ function onLogout() {
   return Promise.resolve()
 }
 
-function onBuyVip() {
-  uni.showModal({
-    title: '开通会员',
-    content: '确定要开通会员吗？每月仅需6元',
-    success: (res) => {
-      if (res.confirm) {
-        // TODO: 调用支付接口
-        uni.showToast({
-          title: '功能开发中',
-          icon: 'none'
-        })
-      }
+// 选择会员类型
+function onSelectVip(type) {
+  selectedVipType.value = type
+  return Promise.resolve()
+}
+
+// 购买会员
+async function onBuyVip() {
+  const price = selectedVipType.value === 'forever' ? 98 : 6
+  const type = selectedVipType.value === 'forever' ? '永久会员' : '月度会员'
+  const productId = selectedVipType.value === 'forever' ? 'forevervip' : 'monthvip'
+
+  try {
+    // 1. 检查登录状态
+    const currentUser = AV.User.current()
+    if (!currentUser) {
+      uni.showToast({
+        title: '请先登录',
+        icon: 'none'
+      })
+      return Promise.resolve()
     }
-  })
+
+    // 2. 确认购买
+
+    const ret = await uni.showModal({
+      title: '开通会员',
+      content: `确定要开通${type}吗？仅需${price}元`
+    })
+
+    if (!ret.confirm) {
+      return Promise.resolve()
+    }
+
+    // 3. 调用支付
+    // #ifdef APP-PLUS
+    if (uni.getSystemInfoSync().platform !== 'ios') {
+      uni.showToast({
+        title: '请在iOS设备上购买',
+        icon: 'none'
+      })
+      return Promise.resolve()
+    }
+
+    uni.showLoading({
+      title: '正在创建订单...'
+    })
+
+    try {
+      const { providers } = await uni.getProvider({
+        service: 'payment'
+      })
+
+      const iapChannel = providers.find((p) => p.id === 'appleiap')
+
+      // 3.1 创建订单
+      // const order = new AV.Object('Order')
+      // order.set('user', currentUser)
+      // order.set('productId', productId)
+      // order.set('amount', price)
+      // order.set('status', 'pending')
+      // await order.save()
+      console.log(1111111111111)
+      const productRet = await new Promise((resolve, reject) => {
+        iapChannel.requestProduct(
+          ['monthvip', 'forevervip'],
+          (ret) => resolve(ret),
+          (error) => reject(error)
+        )
+      })
+      console.log(productRet)
+
+      // 3.2 调用苹果支付
+      const paymentRet = await uni.requestPayment({
+        provider: iapChannel.id,
+        orderInfo: {
+          productid: productId,
+          username: AV.User.current().getUsername(),
+          manualFinishTransaction: true
+        }
+      })
+
+      console.log(paymentRet)
+
+      // console.log(paymentRet)
+
+      // if (payError) {
+      //   throw new Error('支付失败')
+      // }
+
+      // 3.3 支付成功,更新用户会员状态
+      // const user = AV.User.current()
+      // if (selectedVipType.value === 'forever') {
+      //   user.set('isVip', true)
+      //   user.set('vipExpireAt', null) // 永久会员
+      // } else {
+      //   user.set('isVip', true)
+      //   const expireAt = new Date()
+      //   expireAt.setMonth(expireAt.getMonth() + 1)
+      //   user.set('vipExpireAt', expireAt)
+      // }
+      // await user.save()
+
+      // 3.4 更新本地状态
+      userInfoRef.value.isVip = true
+
+      uni.showToast({
+        title: '开通成功',
+        icon: 'success'
+      })
+    } catch (error) {
+      console.error('支付失败:', error)
+      uni.showToast({
+        title: error.message || '支付失败',
+        icon: 'none'
+      })
+    } finally {
+      uni.hideLoading()
+    }
+    // #endif
+
+    // #ifndef APP-PLUS
+    uni.showToast({
+      title: '请在iOS APP内购买',
+      icon: 'none'
+    })
+    // #endif
+  } catch (error) {
+    console.error('购买失败:', error)
+    uni.showToast({
+      title: error.message || '购买失败',
+      icon: 'none'
+    })
+  }
+
   return Promise.resolve()
 }
 
@@ -447,7 +609,7 @@ onLoad(() => {
 .logout-btn {
   width: calc(100% - 32rpx);
   height: 80rpx;
-  margin: 20rpx 16rpx 40rpx;
+  margin: 20rpx 16rpx 80rpx;
   background: #ff4d4f;
   color: #fff;
   font-size: 28rpx;
@@ -564,5 +726,79 @@ onLoad(() => {
   color: #ff4d4f;
   padding: 16rpx 0;
   text-align: center;
+}
+
+.vip-options {
+  margin: 20rpx 0;
+}
+
+.vip-option {
+  position: relative;
+  background: #f8f8f8;
+  border-radius: 8rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vip-option:active {
+  background: #f0f0f0;
+}
+
+.option-header {
+  flex: 1;
+}
+
+.option-title {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: bold;
+  margin-bottom: 8rpx;
+}
+
+.option-price {
+  display: flex;
+  align-items: baseline;
+}
+
+.price-number {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #f5a623;
+}
+
+.price-unit {
+  font-size: 24rpx;
+  color: #999;
+  margin-left: 4rpx;
+}
+
+.option-selected {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  background: #f5a623;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 20rpx;
+}
+
+.selected-icon {
+  color: #fff;
+  font-size: 24rpx;
+}
+
+.vip-benefits {
+  margin: 30rpx 0 20rpx;
+}
+
+.benefit-item {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.8;
+  display: block;
 }
 </style>

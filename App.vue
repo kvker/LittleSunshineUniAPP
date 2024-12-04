@@ -19,7 +19,7 @@ AV.init({
   serverURL: 'https://xzhlvxqf.lc-cn-n1-shared.com'
 })
 
-console.log(AV)
+// console.log(AV)
 
 export default {
   globalData: {
