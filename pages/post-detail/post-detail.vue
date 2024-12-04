@@ -122,7 +122,7 @@ async function onSubmitComment() {
 
   isSubmittingRef.value = true
   try {
-    await request.onCreate({
+    await request.onCreateComment({
       content: commentContentRef.value.trim(),
       postId: objectIdRef.value
     })

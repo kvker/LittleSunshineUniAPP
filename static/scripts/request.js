@@ -1,24 +1,23 @@
 export default class Request {
-  hostname = 'http://localhost:13000'
+  hostname = 'https://1251835910-fctniucu1k.ap-beijing.tencentscf.com'
 
-  constructor({
-    AV
-  }) {
+  constructor({ AV }) {
     this.AV = AV
   }
 
   onRequest(url, params) {
-    return fetch(this.hostname + url, {
+    return uni.request({
+      url: this.hostname + url,
       method: 'POST',
-      headers: {
+      header: {
         'Content-Type': 'application/json',
         'X-LC-Session': this.AV.User.current().getSessionToken()
       },
-      body: JSON.stringify(params)
+      data: params
     })
   }
 
-  async onCreate(params) {
+  async onCreatePost(params) {
     try {
       const response = await this.onRequest('/api/post/create', params)
       if (!response.ok) {
@@ -39,10 +38,7 @@ export default class Request {
    * @param {string} params.postId - 帖子ID
    * @returns {Promise<Comment>} 评论信息
    */
-  async onCreate({
-    content,
-    postId
-  }) {
+  async onCreateComment({ content, postId }) {
     try {
       const response = await this.onRequest('/api/comment/create', {
         content,
@@ -59,5 +55,13 @@ export default class Request {
       console.error('创建评论失败:', error)
       return Promise.reject(error)
     }
+  }
+
+  onValidPayForVip(result) {
+    return this.onRequest('/api/apple/onIapVerifyReceipt', {
+      username: result.username,
+      orderId: result.orderId,
+      transactionReceipt: result.signedPayload
+    })
   }
 }

@@ -210,7 +210,7 @@
 
     isPostingRef.value = true
     try {
-      await request.onCreate({
+      await request.onCreatePost({
         content: postContentRef.value.trim()
       })
 

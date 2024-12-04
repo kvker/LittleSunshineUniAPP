@@ -195,6 +195,7 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import Request from '@/static/scripts/request'
 
 const AV = getApp().globalData.AV
 const userInfoRef = ref(null)
@@ -426,7 +427,11 @@ async function onBuyVip() {
         service: 'payment'
       })
 
+      console.log(providers)
+
       const iapChannel = providers.find((p) => p.id === 'appleiap')
+
+      console.log(iapChannel)
 
       // 3.1 创建订单
       // const order = new AV.Object('Order')
@@ -435,22 +440,30 @@ async function onBuyVip() {
       // order.set('amount', price)
       // order.set('status', 'pending')
       // await order.save()
-      console.log(1111111111111)
+
       const productRet = await new Promise((resolve, reject) => {
         iapChannel.requestProduct(
-          ['monthvip', 'forevervip'],
-          (ret) => resolve(ret),
-          (error) => reject(error)
+          [productId],
+          (res) => {
+            resolve(res)
+          },
+          (err) => {
+            reject(err)
+          }
         )
       })
+
       console.log(productRet)
 
+      console.log(productId)
+
       // 3.2 调用苹果支付
+      const username = AV.User.current().getUsername()
       const paymentRet = await uni.requestPayment({
         provider: iapChannel.id,
         orderInfo: {
           productid: productId,
-          username: AV.User.current().getUsername(),
+          username,
           manualFinishTransaction: true
         }
       })
@@ -462,6 +475,16 @@ async function onBuyVip() {
       // if (payError) {
       //   throw new Error('支付失败')
       // }
+
+      // 支付后校验
+      const request = new Request({ AV })
+      const validRet = await request.onValidPayForVip({
+        username,
+        orderId: paymentRet.transactionIdentifier,
+        signedPayload: paymentRet.transactionReceipt
+      })
+
+      console.log(validRet)
 
       // 3.3 支付成功,更新用户会员状态
       // const user = AV.User.current()
